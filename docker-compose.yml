@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  parc-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: parc-finance-controller
+    ports:
+      - "8000:8000"
+    environment:
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - MISTRAL_API_KEY=${MISTRAL_API_KEY}
+      - NVIDIA_API_KEY=${NVIDIA_API_KEY}
+      - PORT=8000
+    restart: unless-stopped

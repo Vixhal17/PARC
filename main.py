@@ -1,6 +1,7 @@
 from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 import pandas as pd
 import json
@@ -444,3 +445,23 @@ async def run_batch_test(req: BatchTestRequest):
             "verified_rate": round((verified_count / applicable_count) * 100, 1) if applicable_count > 0 else 0
         }
     }
+
+# Production SPA Static File Serving
+frontend_dist = os.path.join(os.path.dirname(__file__), "frontend", "dist")
+if os.path.exists(frontend_dist):
+    assets_dir = os.path.join(frontend_dist, "assets")
+    if os.path.exists(assets_dir):
+        app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
+
+    @app.get("/{full_path:path}")
+    async def serve_spa(full_path: str):
+        if full_path.startswith("api") or full_path in ["docs", "redoc", "openapi.json"]:
+            raise HTTPException(status_code=404, detail="Not Found")
+        file_path = os.path.join(frontend_dist, full_path)
+        if os.path.exists(file_path) and os.path.isfile(file_path):
+            return FileResponse(file_path)
+        index_html = os.path.join(frontend_dist, "index.html")
+        if os.path.exists(index_html):
+            return FileResponse(index_html)
+        raise HTTPException(status_code=404, detail="Frontend build not found")
+

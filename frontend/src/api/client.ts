@@ -12,8 +12,12 @@ import type {
   MoneyFlowData
 } from '../types';
 
+const API_BASE_URL = import.meta.env.VITE_API_URL 
+  ? `${import.meta.env.VITE_API_URL.replace(/\/$/, '')}/api` 
+  : (typeof window !== 'undefined' && window.location.port === '5173' ? 'http://127.0.0.1:8000/api' : '/api');
+
 const api = axios.create({
-  baseURL: 'http://127.0.0.1:8000/api',
+  baseURL: API_BASE_URL,
 });
 
 export const apiClient = {
@@ -57,7 +61,7 @@ export const apiClient = {
     onError: (err: any) => void
   ) => {
     try {
-      const response = await fetch('http://127.0.0.1:8000/api/ask/stream', {
+      const response = await fetch(`${API_BASE_URL}/ask/stream`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ question, conversation_history: history })
