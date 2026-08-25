@@ -1,0 +1,62 @@
+[
+  {
+    "question": "What is the status of order order_59974?",
+    "type": "exact",
+    "expected_match": "order_59974",
+    "category": "Order Status"
+  },
+  {
+    "question": "What is the status of order order_98662168?",
+    "type": "exact",
+    "expected_match": "order_98662168",
+    "category": "Order Status"
+  },
+  {
+    "question": "Why did order_62547357 fail reconciliation?",
+    "type": "exact",
+    "expected_match": "TIMING_DELAY",
+    "category": "Exception Triage"
+  },
+  {
+    "question": "Why did order_47179034 fail reconciliation?",
+    "type": "exact",
+    "expected_match": "MISSING_PAYMENT",
+    "category": "Exception Triage"
+  },
+  {
+    "question": "How many DUPLICATE_UTR exceptions do we have?",
+    "type": "exact",
+    "expected_match": "13",
+    "category": "Aggregate Metrics"
+  },
+  {
+    "question": "How many MISSING_PAYMENT exceptions are recorded?",
+    "type": "exact",
+    "expected_match": "4",
+    "category": "Aggregate Metrics"
+  },
+  {
+    "question": "How many exceptions of type TIMING_DELAY are there?",
+    "type": "exact",
+    "expected_match": "6",
+    "category": "Aggregate Metrics"
+  },
+  {
+    "question": "What is the reconciliation status of order_88888888?",
+    "type": "refusal",
+    "expected_match": "",
+    "category": "Hallucination Resistance"
+  },
+  {
+    "question": "Why did settlement setl_00000000 fail?",
+    "type": "refusal",
+    "expected_match": "",
+    "category": "Hallucination Resistance"
+  },
+  {
+    "question": "What is our standard customer refund policy?",
+    "type": "refusal",
+    "expected_match": "",
+    "category": "Out-of-Scope Guardrail"
+  }
+]

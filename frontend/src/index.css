@@ -1,0 +1,99 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 210 40% 98%; /* #F6F9FC Canvas Soft */
+    --foreground: 210 65% 15%; /* #0D253D Deep Navy Ink */
+
+    --card: 0 0% 100%; /* #FFFFFF Canvas */
+    --card-foreground: 210 65% 15%; /* #0D253D Deep Navy Ink */
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 210 65% 15%;
+
+    --primary: 248 98% 61%; /* #533AFD Electric Indigo */
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 210 30% 96%;
+    --secondary-foreground: 210 65% 15%;
+
+    --muted: 210 25% 94%;
+    --muted-foreground: 215 16% 47%; /* #64748D Ink Mute */
+
+    --accent: 248 98% 95%; /* #B9B9F9 Subdued Indigo fill */
+    --accent-foreground: 248 60% 50%;
+
+    --destructive: 341 82% 52%; /* #EA2261 Ruby */
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 210 25% 91%; /* #E3E8EE Hairline */
+    --input: 210 42% 76%; /* #A8C3DE Hairline Input */
+    --ring: 248 98% 61%;
+
+    --radius: 0.75rem; /* 12px card radius */
+  }
+
+  .dark {
+    --background: 228 50% 11%; /* #1C1E54 Brand Dark 900 */
+    --foreground: 210 40% 98%;
+
+    --card: 228 50% 14%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 228 50% 11%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 248 98% 61%; /* #533AFD */
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 228 35% 20%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 228 30% 20%;
+    --muted-foreground: 215 20% 65%;
+
+    --accent: 228 35% 22%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 341 82% 52%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 228 30% 20%;
+    --input: 228 30% 25%;
+    --ring: 248 98% 61%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-feature-settings: "ss01" 1;
+  }
+}
+
+.gradient-mesh-bg {
+  background: radial-gradient(at 10% 20%, rgba(245, 233, 212, 0.7) 0px, transparent 50%),
+              radial-gradient(at 40% 10%, rgba(155, 104, 41, 0.25) 0px, transparent 50%),
+              radial-gradient(at 70% 20%, rgba(102, 94, 253, 0.35) 0px, transparent 50%),
+              radial-gradient(at 90% 10%, rgba(234, 34, 97, 0.25) 0px, transparent 50%),
+              radial-gradient(at 50% 80%, rgba(83, 58, 253, 0.2) 0px, transparent 50%);
+  background-color: #ffffff;
+}
+
+.stripe-shadow-1 {
+  box-shadow: 0 1px 3px rgba(0, 55, 112, 0.08);
+}
+
+.stripe-shadow-2 {
+  box-shadow: 0 8px 24px rgba(0, 55, 112, 0.08), 0 2px 6px rgba(0, 55, 112, 0.04);
+}
+
+.tnum {
+  font-feature-settings: "tnum" 1;
+  letter-spacing: -0.42px;
+}

@@ -1,0 +1,68 @@
+{
+  "runs": [
+    {
+      "run_id": "run_20260825_065458",
+      "label": "Generation Run Aug 25, 06:54:58",
+      "timestamp": "2026-08-25T06:54:58.632043",
+      "seed": 21098,
+      "total_records": 500,
+      "payments_count": 496,
+      "settlements_count": 169,
+      "bank_records_count": 169,
+      "match_rate": 90.6,
+      "exceptions_count": 47,
+      "exception_breakdown": {
+        "AMOUNT_MISMATCH": 18,
+        "DUPLICATE_UTR": 11,
+        "MISSING_SETTLEMENT": 6,
+        "TIMING_DELAY": 6,
+        "MISSING_PAYMENT": 4,
+        "UNRESOLVED": 2
+      },
+      "is_active": true
+    },
+    {
+      "run_id": "run_20260824_203153",
+      "label": "Generation Run Aug 24, 20:31:53",
+      "timestamp": "2026-08-24T20:31:53.891547",
+      "seed": 83712,
+      "total_records": 500,
+      "payments_count": 496,
+      "settlements_count": 159,
+      "bank_records_count": 159,
+      "match_rate": 90.6,
+      "exceptions_count": 47,
+      "exception_breakdown": {
+        "AMOUNT_MISMATCH": 15,
+        "TIMING_DELAY": 6,
+        "MISSING_PAYMENT": 4,
+        "MISSING_SETTLEMENT": 8,
+        "DUPLICATE_UTR": 13,
+        "UNRESOLVED": 1
+      },
+      "is_active": true
+    },
+    {
+      "run_id": "run_20260824_195513",
+      "label": "Generation Run Aug 24, 19:55:13",
+      "timestamp": "2026-08-24T19:55:13.145004",
+      "seed": 81512,
+      "total_records": 500,
+      "payments_count": 498,
+      "settlements_count": 159,
+      "bank_records_count": 159,
+      "match_rate": 86.2,
+      "exceptions_count": 69,
+      "exception_breakdown": {
+        "DUPLICATE_UTR": 23,
+        "TIMING_DELAY": 10,
+        "MISSING_SETTLEMENT": 11,
+        "MISSING_PAYMENT": 2,
+        "AMOUNT_MISMATCH": 22,
+        "UNRESOLVED": 1
+      },
+      "is_active": true
+    }
+  ],
+  "active_run_id": "run_20260825_065458"
+}
