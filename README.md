@@ -305,8 +305,3 @@ python -m eval.run_eval
 ```
 
 ---
-
-## 🔒 Security & Best Practices
-- Never commit `.env` or sensitive API keys.
-- Ensure `.gitignore` is preserved when pushing to version control.
-- API keys are hot-reloaded dynamically from `.env` via `load_dotenv(override=True)`.
