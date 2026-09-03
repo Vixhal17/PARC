@@ -1,4 +1,5 @@
 import pandas as pd
+import re
 from engine.reconcile import load_data, run_reconciliation
 
 _cached_data = None
@@ -26,28 +27,49 @@ def clear_data_cache():
     _cached_data = None
     _cached_reconciled_data = None
 
+import math
+from datetime import date, datetime
+
+def serialize_record(record_dict: dict) -> dict:
+    """Safely converts dates, timestamps, NaNs, and non-serializable objects for JSON serialization."""
+    out = {}
+    for k, v in record_dict.items():
+        if v is None or (isinstance(v, float) and math.isnan(v)) or pd.isna(v):
+            out[k] = None
+        elif isinstance(v, (date, datetime, pd.Timestamp)):
+            out[k] = v.isoformat()
+        else:
+            out[k] = v
+    return out
+
+def normalize_identifier(raw_id: str) -> str:
+    s = str(raw_id).strip().replace("`", "")
+    s = re.sub(r'^(?:order[\s_]+)+', 'order_', s, flags=re.IGNORECASE)
+    s = re.sub(r'^(?:settlement[\s_]+)+', 'setl_', s, flags=re.IGNORECASE)
+    s = re.sub(r'^(?:setl[\s_]+)+', 'setl_', s, flags=re.IGNORECASE)
+    s = re.sub(r'^(?:payment[\s_]+)+', 'pay_', s, flags=re.IGNORECASE)
+    s = re.sub(r'^(?:pay[\s_]+)+', 'pay_', s, flags=re.IGNORECASE)
+    return s
+
 def get_order_status(order_id: str) -> dict:
     """Gets the full reconciliation status for a specific order."""
     df, _, _ = get_reconciled_data()
     if df.empty:
         return {"found": False}
         
-    clean_id = str(order_id).strip().replace("`", "")
-    if clean_id.lower().startswith("order "):
-        clean_id = clean_id[6:].strip()
+    clean_id = normalize_identifier(order_id)
+    if not clean_id.lower().startswith("order_"):
+        clean_id = f"order_{clean_id}"
     
-    order_row = df[df['order_id'] == clean_id]
-    if order_row.empty and not clean_id.startswith("order_"):
-        order_row = df[df['order_id'] == f"order_{clean_id}"]
-    if order_row.empty and clean_id.startswith("order_"):
-        order_row = df[df['order_id'] == clean_id.replace("order_", "")]
+    order_row = df[df['order_id'].str.lower() == clean_id.lower()]
+    if order_row.empty:
+        raw = str(order_id).strip().replace("`", "")
+        order_row = df[df['order_id'] == raw]
         
     if order_row.empty:
         return {"found": False}
         
-    row = order_row.iloc[0].to_dict()
-    # Replace NaNs with None for JSON serialization
-    row = {k: (None if pd.isna(v) else v) for k, v in row.items()}
+    row = serialize_record(order_row.iloc[0].to_dict())
     return {"found": True, "data": row}
 
 def get_settlement_summary(start_date: str, end_date: str) -> dict:
@@ -56,8 +78,8 @@ def get_settlement_summary(start_date: str, end_date: str) -> dict:
     if df.empty:
         return {"found": False}
         
-    df['settled_at'] = pd.to_datetime(df['settled_at'])
-    mask = (df['settled_at'] >= pd.to_datetime(start_date)) & (df['settled_at'] <= pd.to_datetime(end_date))
+    settled_at_series = pd.to_datetime(df['settled_at'])
+    mask = (settled_at_series >= pd.to_datetime(start_date)) & (settled_at_series <= pd.to_datetime(end_date))
     filtered = df[mask]
     
     if filtered.empty:
@@ -65,7 +87,7 @@ def get_settlement_summary(start_date: str, end_date: str) -> dict:
         
     total = filtered['settled_amount'].sum()
     count = len(filtered)
-    return {"found": True, "total_settled_amount": round(total, 2), "record_count": count}
+    return {"found": True, "total_settled_amount": round(float(total), 2), "record_count": count}
 
 def explain_exception(identifier: str) -> dict:
     """Explains an exception for a given order_id or settlement_id."""
@@ -73,22 +95,22 @@ def explain_exception(identifier: str) -> dict:
     if exc.empty:
         return {"found": False}
         
-    mask = (exc['order_id'] == identifier) | (exc['settlement_id'] == identifier)
+    clean_id = normalize_identifier(identifier)
+    mask = (exc['order_id'].str.lower() == clean_id.lower()) | (exc['settlement_id'].str.lower() == clean_id.lower())
     affected = exc[mask]
     
     if affected.empty:
+        raw = str(identifier).strip().replace("`", "")
+        affected = exc[(exc['order_id'] == raw) | (exc['settlement_id'] == raw)]
+    
+    if affected.empty:
         # Maybe it's a clean match
-        clean_mask = (df['order_id'] == identifier) | (df['settlement_id'] == identifier)
+        clean_mask = (df['order_id'].str.lower() == clean_id.lower()) | (df['settlement_id'].str.lower() == clean_id.lower())
         if not df[clean_mask].empty:
             return {"found": False, "status": "CLEAN_MATCH", "message": "No exception recorded for this identifier. The record reconciled cleanly."}
         return {"found": False}
         
-    results = []
-    for _, row in affected.iterrows():
-        r = row.to_dict()
-        r = {k: (None if pd.isna(v) else v) for k, v in r.items()}
-        results.append(r)
-        
+    results = [serialize_record(r) for r in affected.to_dict(orient="records")]
     return {"found": True, "exceptions": results}
 
 def list_exceptions(reason_code: str = None) -> dict:
@@ -105,13 +127,8 @@ def list_exceptions(reason_code: str = None) -> dict:
     if filtered.empty:
         return {"found": False}
         
-    results = []
-    for _, row in filtered.iterrows():
-        r = row.to_dict()
-        r = {k: (None if pd.isna(v) else v) for k, v in r.items()}
-        results.append(r)
-        
-    return {"found": True, "count": len(results), "exceptions": results}
+    results = [serialize_record(r) for r in filtered.head(50).to_dict(orient="records")]
+    return {"found": True, "count": len(filtered), "exceptions": results}
 
 def total_settled() -> dict:
     """Returns the grand total settled amount across all records."""

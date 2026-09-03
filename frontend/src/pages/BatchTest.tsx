@@ -1,4 +1,4 @@
-import { useState, useRef, Fragment, type ChangeEvent } from 'react';
+import { useState, useRef, useEffect, Fragment, type ChangeEvent } from 'react';
 import { Play, CheckCircle, XCircle, Plus, X, RotateCcw, Upload, ChevronDown, ChevronUp } from 'lucide-react';
 import { motion } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
@@ -17,21 +17,29 @@ import { stripMarkdown } from '../lib/utils';
 import { useData } from '../context/DataContext';
 
 const DEFAULT_QUESTIONS = [
-  "What is the status of order order_3356886?",
-  "Why did order_79254563 fail reconciliation?",
+  "What is the status of our latest clean orders?",
+  "Why did recent exceptions fail reconciliation?",
   "How many DUPLICATE_UTR exceptions do we have?",
   "How many MISSING_PAYMENT exceptions are recorded?",
-  "What is the total settled amount today?"
+  "What is the total settled amount for all records?"
 ];
 
 export default function BatchTest() {
-  const { openDataModal } = useData();
+  const { openDataModal, generationKey } = useData();
   const [questions, setQuestions] = useState<string[]>([...DEFAULT_QUESTIONS]);
   const [results, setResults] = useState<BatchTestResponse | null>(null);
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState(0);
   const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    apiClient.getDefaultBatchQuestions().then(activeQuestions => {
+      if (activeQuestions && activeQuestions.length > 0) {
+        setQuestions(activeQuestions);
+      }
+    }).catch(() => {});
+  }, [generationKey]);
 
   const handleUpdateQuestion = (index: number, value: string) => {
     const updated = [...questions];
@@ -53,7 +61,16 @@ export default function BatchTest() {
   };
 
   const handleResetDefaults = () => {
-    setQuestions([...DEFAULT_QUESTIONS]);
+    setResults(null);
+    apiClient.getDefaultBatchQuestions().then(activeQuestions => {
+      if (activeQuestions && activeQuestions.length > 0) {
+        setQuestions(activeQuestions);
+      } else {
+        setQuestions([...DEFAULT_QUESTIONS]);
+      }
+    }).catch(() => {
+      setQuestions([...DEFAULT_QUESTIONS]);
+    });
   };
 
   const handleCsvUpload = (e: ChangeEvent<HTMLInputElement>) => {

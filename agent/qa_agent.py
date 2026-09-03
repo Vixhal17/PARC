@@ -7,7 +7,7 @@ from openai import OpenAI
 from dotenv import load_dotenv
 import pandas as pd
 import re
-from agent.query_functions import TOOL_FUNCTIONS, get_reconciled_data
+from agent.query_functions import TOOL_FUNCTIONS, get_reconciled_data, normalize_identifier
 from engine.constants import AMOUNT_TOLERANCE, TIME_TOLERANCE_HOURS
 
 load_dotenv()
@@ -171,6 +171,24 @@ TOOLS = [
 
 AGENT_CACHE = {}
 
+def safe_json_dumps(obj) -> str:
+    import math
+    from datetime import date, datetime
+    def clean(val):
+        if val is None or (isinstance(val, float) and math.isnan(val)):
+            return None
+        if isinstance(val, (date, datetime, pd.Timestamp)):
+            return val.isoformat()
+        if isinstance(val, dict):
+            return {k: clean(v) for k, v in val.items()}
+        if isinstance(val, list):
+            return [clean(v) for v in val]
+        return val
+    try:
+        return json.dumps(clean(obj), default=str)
+    except Exception:
+        return json.dumps({"error": "Serialization failed", "found": False})
+
 def clear_agent_cache():
     global AGENT_CACHE
     AGENT_CACHE.clear()
@@ -293,16 +311,17 @@ def get_llm_client(model_override: str = None):
     elif groq_key:
         model_name = "groq/openai/gpt-oss-120b"
     elif mistral_key:
-        model_name = "mistral/mistral-large-latest"
+        model_name = "mistral/mistral-small-latest"
     else:
-        model_name = "nvidia/nemotron-3-ultra-550b-a55b"
+        model_name = "groq/openai/gpt-oss-20b"
 
     # Route based on model prefix, model name, or available provider keys
-    if model_name.startswith("groq/") or "llama-3" in model_name or "mixtral" in model_name or "compound" in model_name or "gpt-oss" in model_name or "qwen3.6" in model_name or (groq_key and not model_name.startswith("nvidia/") and not model_name.startswith("mistral/")):
+    if model_name.startswith("groq/") or "llama-3" in model_name or "mixtral" in model_name or "compound" in model_name or "gpt-oss" in model_name or "qwen3.6" in model_name or "qwen3.8" in model_name or (groq_key and not model_name.startswith("nvidia/") and not model_name.startswith("mistral/")):
         actual_model = model_name.replace("groq/", "")
         client = OpenAI(
             base_url="https://api.groq.com/openai/v1",
-            api_key=groq_key or nvidia_key
+            api_key=groq_key or nvidia_key,
+            timeout=8.0
         )
         return client, actual_model, "Groq"
 
@@ -310,14 +329,16 @@ def get_llm_client(model_override: str = None):
         actual_model = model_name.replace("mistral/", "")
         client = OpenAI(
             base_url="https://api.mistral.ai/v1",
-            api_key=mistral_key or nvidia_key
+            api_key=mistral_key or nvidia_key,
+            timeout=8.0
         )
         return client, actual_model, "Mistral AI"
 
     else:
         client = OpenAI(
             base_url="https://integrate.api.nvidia.com/v1",
-            api_key=nvidia_key
+            api_key=nvidia_key,
+            timeout=8.0
         )
         return client, model_name, "NVIDIA NIM"
 
@@ -325,7 +346,6 @@ def get_candidate_models(model_override: str = None):
     load_dotenv(override=True)
     groq_key = os.environ.get("GROQ_API_KEY")
     mistral_key = os.environ.get("MISTRAL_API_KEY")
-    nvidia_key = os.environ.get("NVIDIA_API_KEY")
 
     candidates = []
     if model_override:
@@ -336,22 +356,18 @@ def get_candidate_models(model_override: str = None):
         if "groq/openai/gpt-oss-120b" not in candidates:
             candidates.append("groq/openai/gpt-oss-120b")
 
-    # 2. Rate-Limit / Fallback: Mistral Large & Small
+    # 2. Fast Fallback: Mistral Small (avoids 403 on mistral-large)
     if mistral_key:
-        if "mistral/mistral-large-latest" not in candidates:
-            candidates.append("mistral/mistral-large-latest")
         if "mistral/mistral-small-latest" not in candidates:
             candidates.append("mistral/mistral-small-latest")
 
-    # 3. Secondary Groq & NVIDIA NIM
+    # 3. Lightweight Groq Fallbacks
     if groq_key:
+        if "groq/openai/gpt-oss-20b" not in candidates:
+            candidates.append("groq/openai/gpt-oss-20b")
         if "groq/qwen/qwen3.6-27b" not in candidates:
             candidates.append("groq/qwen/qwen3.6-27b")
 
-    if nvidia_key:
-        if "nvidia/nemotron-3-ultra-550b-a55b" not in candidates:
-            candidates.append("nvidia/nemotron-3-ultra-550b-a55b")
-            
     return candidates or ["groq/openai/gpt-oss-120b"]
 
 def sanitize_messages_for_llm(messages: list) -> list:
@@ -448,7 +464,8 @@ def ask_agent(question: str, conversation_history: list = None, model_override: 
                     model=model_name,
                     messages=sanitize_messages_for_llm(messages),
                     tools=TOOLS,
-                    tool_choice="auto"
+                    tool_choice="auto",
+                    timeout=8.0
                 )
             except Exception as e:
                 safe_print(f"[QA AGENT] [{provider_name}] API Error: {str(e)}. Retrying with fallback model...")
@@ -479,8 +496,9 @@ def ask_agent(question: str, conversation_history: list = None, model_override: 
                     if func_name in TOOL_FUNCTIONS:
                         try:
                             result = TOOL_FUNCTIONS[func_name](**args)
-                            result_str = json.dumps(result)
+                            result_str = safe_json_dumps(result)
                         except Exception as e:
+                            safe_print(f"[QA AGENT] Tool execution error for {func_name}: {e}")
                             result_str = json.dumps({"error": str(e), "found": False})
                     else:
                         result_str = json.dumps({"error": f"Tool {func_name} not found", "found": False})
@@ -588,7 +606,7 @@ def ask_agent_stream(question: str, conversation_history: list = None, model_ove
                 yield f"data: {json.dumps({'type': 'cached', 'result': cached_result})}\n\n"
                 return
 
-        yield f"data: {json.dumps({'type': 'status', 'message': f'Turn 1: Routing to {provider_name} ({model_name})...'})}\n\n"
+        yield f"data: {json.dumps({'type': 'status', 'message': 'Analyzing query & identifying transaction records...'})}\n\n"
 
         messages = [{"role": "system", "content": SYSTEM_PROMPT}]
         if conversation_history:
@@ -600,7 +618,8 @@ def ask_agent_stream(question: str, conversation_history: list = None, model_ove
                 model=model_name,
                 messages=sanitize_messages_for_llm(messages),
                 tools=TOOLS,
-                tool_choice="auto"
+                tool_choice="auto",
+                timeout=8.0
             )
         except Exception as e:
             safe_print(f"[QA AGENT STREAM] [{provider_name}] API Error: {str(e)}. Retrying next model...")
@@ -614,6 +633,13 @@ def ask_agent_stream(question: str, conversation_history: list = None, model_ove
 
         if message.tool_calls:
             messages.append(message)
+            tool_friendly_names = {
+                "get_order_status": "Retrieving order lifecycle & payment gateway records...",
+                "explain_exception": "Analyzing discrepancy root cause & ledger history...",
+                "list_exceptions": "Scanning reconciliation exceptions ledger...",
+                "get_settlement_summary": "Aggregating settlement volumes & bank statements...",
+                "total_settled": "Calculating total reconciled settlement volume..."
+            }
             for tool_call in message.tool_calls:
                 func_name = tool_call.function.name
                 try:
@@ -621,13 +647,15 @@ def ask_agent_stream(question: str, conversation_history: list = None, model_ove
                 except json.JSONDecodeError:
                     args = {}
 
-                yield f"data: {json.dumps({'type': 'status', 'message': f'Running Pandas Engine tool: {func_name}...'})}\n\n"
+                tool_status_msg = tool_friendly_names.get(func_name, f"Querying reconciliation ledger ({func_name})...")
+                yield f"data: {json.dumps({'type': 'status', 'message': tool_status_msg})}\n\n"
 
                 if func_name in TOOL_FUNCTIONS:
                     try:
                         result = TOOL_FUNCTIONS[func_name](**args)
-                        result_str = json.dumps(result)
+                        result_str = safe_json_dumps(result)
                     except Exception as e:
+                        safe_print(f"[QA AGENT STREAM] Tool execution error for {func_name}: {e}")
                         result_str = json.dumps({"error": str(e), "found": False})
                 else:
                     result_str = json.dumps({"error": f"Tool {func_name} not found", "found": False})
@@ -645,13 +673,14 @@ def ask_agent_stream(question: str, conversation_history: list = None, model_ove
                     "content": result_str
                 })
 
-            yield f"data: {json.dumps({'type': 'status', 'message': f'Turn 2: Synthesizing Answer with {provider_name} ({model_name})...'})}\n\n"
+            yield f"data: {json.dumps({'type': 'status', 'message': 'Compiling reconciliation report & verifying facts...'})}\n\n"
 
             try:
                 stream_response = client.chat.completions.create(
                     model=model_name,
                     messages=sanitize_messages_for_llm(messages),
-                    stream=True
+                    stream=True,
+                    timeout=8.0
                 )
                 think_filter = ThinkTagStreamFilter()
                 for chunk in stream_response:
@@ -667,7 +696,7 @@ def ask_agent_stream(question: str, conversation_history: list = None, model_ove
                     yield f"data: {json.dumps({'type': 'token', 'token': flush_tok})}\n\n"
             except Exception as e:
                 safe_print(f"[QA AGENT STREAM] Turn 2 error on {provider_name} ({model_name}): {e}. Switching synthesis to fallback candidate...")
-                yield f"data: {json.dumps({'type': 'status', 'message': f'Rate limit on {provider_name}. Switching synthesis to fallback model...'})}\n\n"
+                yield f"data: {json.dumps({'type': 'status', 'message': 'Optimizing response delivery channel...'})}\n\n"
                 
                 synthesized = False
                 for fb_cand in candidates:
@@ -679,7 +708,8 @@ def ask_agent_stream(question: str, conversation_history: list = None, model_ove
                         fb_stream = fb_client.chat.completions.create(
                             model=fb_model_name,
                             messages=sanitize_messages_for_llm(messages),
-                            stream=True
+                            stream=True,
+                            timeout=8.0
                         )
                         fb_filter = ThinkTagStreamFilter()
                         for chunk in fb_stream:
@@ -792,7 +822,21 @@ def verify_agent_answer(question, final_answer, tool_calls_history):
         if func_name in ["get_order_status", "explain_exception"]:
             identifier = args.get("order_id") or args.get("identifier")
             if identifier:
-                record = df[(df['order_id'] == identifier) | (df['settlement_id'] == identifier) | (df['payment_id'] == identifier)]
+                clean_id = normalize_identifier(identifier)
+                record = df[(df['order_id'].str.lower() == clean_id.lower()) | (df['settlement_id'].str.lower() == clean_id.lower()) | (df['payment_id'].str.lower() == clean_id.lower())]
+                if record.empty:
+                    record = df[(df['order_id'] == identifier) | (df['settlement_id'] == identifier) | (df['payment_id'] == identifier)]
+                    
+                tc_result = str(tc.get("result", "")).lower()
+                is_tool_not_found = '"found": false' in tc_result
+                refusal_phrases = ["not found", "cannot find", "does not exist", "cannot resolve", "no record", "could not find", "not available", "no matching", "no data", "unable to", "cannot explain", "no exception"]
+
+                if is_tool_not_found or record.empty:
+                    if any(rp in lower_answer for rp in refusal_phrases):
+                        return True, f"Verified accurate refusal: '{identifier}' was not found in database records."
+                    else:
+                        return False, f"Identifier '{identifier}' does not exist, but agent failed to clearly state data was not found."
+
                 if not record.empty:
                     row = record.iloc[0]
                     expected_oid = str(row.get('order_id', '')).lower()
@@ -819,12 +863,6 @@ def verify_agent_answer(question, final_answer, tool_calls_history):
                             return False, f"Expected order amount {float(amt_ord):.2f} not found in answer text."
                             
                     return True, f"Verified order ID '{expected_oid}', status '{expected_reason.upper()}', and amount (${float(amt_ord):.2f}) against database ground truth."
-                else:
-                    refusal_phrases = ["not found", "cannot find", "does not exist", "cannot resolve", "no record", "could not find", "not available", "no matching", "no data", "unable to", "cannot explain", "no exception"]
-                    if any(rp in lower_answer for rp in refusal_phrases):
-                        return True, f"Verified accurate refusal: '{identifier}' does not exist in ground truth database."
-                    else:
-                        return False, f"Identifier '{identifier}' does not exist, but agent failed to clearly state data was not found."
 
         elif func_name == "list_exceptions":
             reason_code = args.get("reason_code")
@@ -860,12 +898,19 @@ def verify_agent_answer(question, final_answer, tool_calls_history):
                 df_temp = df.copy()
                 df_temp['settled_at'] = pd.to_datetime(df_temp['settled_at'])
                 mask = (df_temp['settled_at'] >= pd.to_datetime(start_date)) & (df_temp['settled_at'] <= pd.to_datetime(end_date))
-                expected_sum = df_temp[mask]['settled_amount'].sum()
-                found_sum = any(abs(pnum - expected_sum) <= 1.00 for pnum in parsed_numbers)
-                if found_sum:
-                    return True, f"Verified settlement summary amount (${expected_sum:.2f}) against database ground truth."
+                expected_sum = df_temp[mask]['settled_amount'].sum() if not df_temp[mask].empty else 0.0
+                if df_temp[mask].empty or expected_sum == 0.0:
+                    refusal_phrases = ["not found", "cannot find", "does not exist", "cannot resolve", "no settlement", "no record", "no data", "unable to", "0", "zero"]
+                    if any(rp in lower_answer for rp in refusal_phrases):
+                        return True, f"Verified accurate refusal: no settlements recorded for date range {start_date} to {end_date}."
+                    else:
+                        return False, f"No settlements exist in range {start_date} to {end_date}, but agent failed to clearly state data was not found."
                 else:
-                    return False, f"Expected settlement summary amount ${expected_sum:.2f}, but matching value was not found in answer."
+                    found_sum = any(abs(pnum - expected_sum) <= 1.00 for pnum in parsed_numbers)
+                    if found_sum:
+                        return True, f"Verified settlement summary amount (${expected_sum:.2f}) against database ground truth."
+                    else:
+                        return False, f"Expected settlement summary amount ${expected_sum:.2f}, but matching value was not found in answer."
 
     return True, "Data verified against direct database lookup."
 

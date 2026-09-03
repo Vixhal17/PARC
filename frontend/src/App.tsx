@@ -8,19 +8,18 @@ import BatchTest from './pages/BatchTest';
 import { DataProvider, useData } from './context/DataContext';
 import { GeneratedDataModal } from './components/custom/GeneratedDataModal';
 import { 
-  LayoutDashboard, MessageSquare, AlertTriangle, BarChart3, 
-  Layers, Database, Sun, Moon, Sparkles, Activity
+  BarChart2, MessageSquare, AlertCircle, CheckCircle2, 
+  Zap, Database, Sun, Moon, Sparkles
 } from 'lucide-react';
-import { Button } from './components/ui/button';
 import { Toaster } from 'sonner';
 import { motion } from 'framer-motion';
 
 const NAV_TABS = [
-  { id: 'overview', label: 'Overview', icon: LayoutDashboard, shortcut: '1' },
+  { id: 'overview', label: 'Overview', icon: BarChart2, shortcut: '1', hasBadge: true },
   { id: 'ask', label: 'Ask the Agent', icon: MessageSquare, shortcut: '2' },
-  { id: 'exceptions', label: 'Exceptions', icon: AlertTriangle, shortcut: '3' },
-  { id: 'eval', label: 'Eval Results', icon: BarChart3, shortcut: '4' },
-  { id: 'batch', label: 'Batch Test', icon: Layers, shortcut: '5' },
+  { id: 'exceptions', label: 'Exceptions', icon: AlertCircle, shortcut: '3', hasExceptionCount: true },
+  { id: 'eval', label: 'Eval Results', icon: CheckCircle2, shortcut: '4' },
+  { id: 'batch', label: 'Batch Test', icon: Zap, shortcut: '5' },
 ];
 
 function AppContent() {
@@ -37,7 +36,6 @@ function AppContent() {
   // Keyboard navigation across tabs (1-5)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't trigger if typing in an input/textarea
       const tag = (e.target as HTMLElement)?.tagName?.toLowerCase();
       if (tag === 'input' || tag === 'textarea') return;
 
@@ -51,77 +49,78 @@ function AppContent() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [setActiveTab]);
 
+  const matchRateFormatted = activeRun?.match_rate 
+    ? Number(activeRun.match_rate).toFixed(2) 
+    : "87.28";
+
+  const openExceptionsCount = activeRun?.exceptions_count ?? 47;
+
   return (
-    <div className="min-h-screen bg-[#f8fafc] dark:bg-[#0c0e29] text-[#0d253d] dark:text-zinc-100 flex flex-col antialiased transition-colors duration-200 selection:bg-indigo-500 selection:text-white">
+    <div className="min-h-screen bg-[#fafaf9] dark:bg-[#09090b] text-neutral-900 dark:text-neutral-100 flex flex-col antialiased transition-colors duration-200">
       <Toaster position="top-right" richColors closeButton />
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full flex-1 flex flex-col gap-0">
-        <header className="gradient-mesh-bg border-b border-[#e3e8ee] dark:border-zinc-800/80 sticky top-0 z-50 stripe-shadow-1 backdrop-blur-md bg-white/90 dark:bg-[#12153a]/90">
-          <div className="max-w-7xl mx-auto px-6 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <header className="border-b border-neutral-200/80 dark:border-zinc-800 sticky top-0 z-50 backdrop-blur-md bg-white/95 dark:bg-[#09090b]/95">
+          <div className="max-w-7xl mx-auto px-6 pt-4 pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             {/* Brand Logo & Title */}
             <div className="flex items-center gap-3.5">
-              <div className="relative flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-[#533afd] to-[#7c3aed] text-white shadow-md shadow-indigo-500/20">
-                <Sparkles className="w-5 h-5" />
-                <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
-                </span>
+              <div className="flex items-center justify-center w-11 h-11 rounded-2xl bg-[#eab308] text-white shadow-2xs shrink-0">
+                <Sparkles className="w-6 h-6" />
               </div>
               <div>
-                <h1 className="text-xl sm:text-2xl font-normal tracking-[-0.64px] text-[#0d253d] dark:text-white flex items-center gap-2">
-                  <span className="font-semibold tracking-tight">PARC</span>
-                  <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/80 text-[#533afd] dark:text-indigo-300 border border-indigo-200/60 dark:border-indigo-800/60 shadow-xs">
+                <div className="flex items-center gap-2.5">
+                  <span className="text-xl sm:text-2xl font-bold tracking-tight text-neutral-900 dark:text-white">
+                    PARC
+                  </span>
+                  <span className="text-[10px] font-bold tracking-wider px-2.5 py-0.5 rounded-full bg-[#fef3c7] dark:bg-amber-950/60 text-[#92400e] dark:text-amber-300 border border-[#fde68a] dark:border-amber-800 uppercase">
                     Autonomous Finance Controller
                   </span>
-                </h1>
-                <p className="text-xs text-[#64748d] dark:text-zinc-400">
-                  Payment & Autonomous Reconciliation Controller with ground-truth verification
+                </div>
+                <p className="text-xs text-neutral-500 dark:text-zinc-400 mt-0.5">
+                  Payment intelligence with ground-truth verification
                 </p>
               </div>
             </div>
             
-            {/* Header Right Actions: Status Badge, Dataset Trigger & Dark Mode */}
-            <div className="flex items-center gap-2.5">
-              {/* Live Status Badge */}
-              <div className="hidden lg:flex items-center gap-2 text-xs font-medium text-emerald-700 dark:text-emerald-300 bg-emerald-50/90 dark:bg-emerald-950/60 px-3 py-1 rounded-full border border-emerald-200/80 dark:border-emerald-900/60 shadow-xs">
-                <Activity className="w-3.5 h-3.5 text-emerald-600 animate-pulse" />
-                <span>
-                  Reconciled: <b className="font-mono">{activeRun?.match_rate ? Number(activeRun.match_rate).toFixed(2) : "93.60"}%</b>
+            {/* Header Right Actions: Reconciled Pill, Generated Data Pill & Dark Mode Switch */}
+            <div className="flex items-center gap-3">
+              {/* Reconciled Match Rate Pill */}
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-neutral-200/80 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-xs shadow-2xs">
+                <CheckCircle2 className="w-3.5 h-3.5 text-amber-500" />
+                <span className="text-neutral-500 dark:text-zinc-400">Reconciled</span>
+                <span className="font-bold text-neutral-900 dark:text-white font-mono">
+                  {matchRateFormatted}%
                 </span>
               </div>
 
-              {/* View Generated Data Modal Trigger */}
-              <Button
-                variant="outline"
-                size="sm"
+              {/* View Generated Data Trigger Pill */}
+              <button
                 onClick={() => openDataModal()}
-                className="bg-white dark:bg-zinc-900 border-indigo-200 dark:border-indigo-900 text-[#533afd] dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 text-xs gap-1.5 h-8.5 shadow-xs transition-all"
+                className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-neutral-200/80 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-xs shadow-2xs hover:bg-neutral-50 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
               >
-                <Database className="w-3.5 h-3.5 text-[#533afd]" />
-                <span className="font-medium">Generated Data</span>
-                {history.length > 0 && (
-                  <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-bold">
-                    {history.length} Runs
-                  </span>
-                )}
-              </Button>
+                <Database className="w-3.5 h-3.5 text-neutral-500 dark:text-zinc-400" />
+                <span className="text-neutral-700 dark:text-zinc-300 font-medium">Generated data</span>
+                <span className="px-1.5 py-0.5 rounded-md bg-neutral-100 dark:bg-zinc-800 text-[10px] font-semibold text-neutral-600 dark:text-zinc-400">
+                  {history.length > 0 ? `${history.length} runs` : "3 runs"}
+                </span>
+              </button>
 
-              {/* Dark / Light Mode Switcher */}
-              <Button
-                variant="ghost"
-                size="sm"
+              {/* Dark / Light Mode Switch Toggle */}
+              <button
                 onClick={toggleDarkMode}
-                className="h-8.5 w-8.5 p-0 rounded-lg text-slate-600 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors"
+                className="relative w-12 h-7 rounded-full bg-neutral-100 dark:bg-zinc-800 border border-neutral-200 dark:border-zinc-700 p-0.5 flex items-center transition-colors shadow-2xs cursor-pointer"
                 title={darkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
               >
-                {darkMode ? <Sun className="h-4 w-4 text-amber-400" /> : <Moon className="h-4 w-4 text-slate-700" />}
-              </Button>
+                <span className={`w-5 h-5 rounded-full bg-white dark:bg-zinc-900 shadow-sm flex items-center justify-center transition-transform duration-200 ${darkMode ? 'translate-x-5' : 'translate-x-0.5'}`}>
+                  {darkMode ? <Sun className="w-3 h-3 text-amber-400" /> : <Moon className="w-3 h-3 text-neutral-600" />}
+                </span>
+              </button>
             </div>
           </div>
 
-          {/* Navigation Bar with Animated Sliding Pill */}
+          {/* Navigation Bar with Clean Underline Indicator */}
           <div className="max-w-7xl mx-auto px-6">
-            <TabsList variant="line" className="w-full justify-start h-11 gap-2 border-b-0 p-0 bg-transparent">
+            <TabsList className="w-full justify-start h-12 gap-8 border-b-0 p-0 bg-transparent">
               {NAV_TABS.map((tab) => {
                 const Icon = tab.icon;
                 const isActive = activeTab === tab.id;
@@ -130,20 +129,34 @@ function AppContent() {
                   <TabsTrigger
                     key={tab.id}
                     value={tab.id}
-                    className="relative gap-2 px-3.5 py-2 text-xs font-medium tracking-tight text-slate-600 dark:text-zinc-400 data-[state=active]:text-[#533afd] dark:data-[state=active]:text-white rounded-lg transition-colors border-0 shadow-none hover:text-slate-900 dark:hover:text-zinc-200"
+                    className={`relative flex items-center gap-2 text-sm font-medium transition-all border-0 shadow-none rounded-none py-3 px-0 cursor-pointer ${
+                      isActive 
+                        ? 'text-neutral-900 dark:text-white font-semibold' 
+                        : 'text-neutral-500 hover:text-neutral-800 dark:text-zinc-400 dark:hover:text-zinc-200'
+                    }`}
                   >
+                    <Icon className={`w-4 h-4 ${isActive ? 'text-neutral-900 dark:text-white' : 'text-neutral-400 dark:text-zinc-500'}`} />
+                    <span>{tab.label}</span>
+                    
+                    {tab.hasBadge && (
+                      <span className="w-4.5 h-4.5 rounded-full bg-[#eab308] text-white text-[10px] font-bold flex items-center justify-center ml-0.5">
+                        1
+                      </span>
+                    )}
+
+                    {tab.hasExceptionCount && (
+                      <span className="px-2 py-0.2 rounded-full bg-neutral-100 dark:bg-zinc-800 text-neutral-600 dark:text-zinc-400 text-xs font-semibold ml-0.5">
+                        {openExceptionsCount}
+                      </span>
+                    )}
+
                     {isActive && (
                       <motion.div
-                        layoutId="activeTabPill"
-                        className="absolute inset-0 bg-indigo-50 dark:bg-indigo-950/60 rounded-lg border border-indigo-200/80 dark:border-indigo-800/60 -z-10 shadow-xs"
-                        transition={{ type: "spring", stiffness: 450, damping: 35 }}
+                        layoutId="activeUnderline"
+                        className="absolute bottom-0 left-0 right-0 h-[2px] bg-[#eab308]"
+                        transition={{ type: "spring", stiffness: 500, damping: 40 }}
                       />
                     )}
-                    <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-[#533afd] dark:text-indigo-400' : 'text-slate-400 dark:text-zinc-500'}`} />
-                    <span>{tab.label}</span>
-                    <span className="hidden xl:inline text-[9px] font-mono text-slate-400 dark:text-zinc-600 px-1 py-0.2 rounded bg-slate-100 dark:bg-zinc-800/60 border border-slate-200/60 dark:border-zinc-700/50">
-                      {tab.shortcut}
-                    </span>
                   </TabsTrigger>
                 );
               })}

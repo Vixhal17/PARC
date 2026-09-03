@@ -126,6 +126,19 @@ export const apiClient = {
     return res.data;
   },
   
+  getDefaultBatchQuestions: async (): Promise<string[]> => {
+    try {
+      const res = await api.get('/batch-test/default-questions');
+      return res.data.questions;
+    } catch {
+      return [
+        "How many DUPLICATE_UTR exceptions do we have?",
+        "How many MISSING_PAYMENT exceptions are recorded?",
+        "What is the total settled amount for all records?"
+      ];
+    }
+  },
+
   runBatchTest: async (questions: string[]): Promise<BatchTestResponse> => {
     const res = await api.post('/batch-test', { questions });
     return res.data;

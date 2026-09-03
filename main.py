@@ -114,7 +114,14 @@ async def get_generated_data(
     total_count = len(df)
     paged_df = df.iloc[offset:offset + limit]
     
-    rows = paged_df.where(pd.notnull(paged_df), None).to_dict(orient="records")
+    raw_rows = paged_df.to_dict(orient="records")
+    clean_rows = []
+    import math
+    for r in raw_rows:
+        clean_rows.append({
+            k: (None if (pd.isna(v) or v is None or (isinstance(v, float) and math.isnan(v))) else (v.isoformat() if hasattr(v, 'isoformat') else v))
+            for k, v in r.items()
+        })
     columns = list(df.columns)
     
     return {
@@ -124,7 +131,7 @@ async def get_generated_data(
         "limit": limit,
         "offset": offset,
         "columns": columns,
-        "rows": rows
+        "rows": clean_rows
     }
 
 @app.get("/api/overview")
@@ -241,11 +248,13 @@ async def get_settlements_timeline():
     if df.empty:
         return []
     
-    df['date_settled'] = pd.to_datetime(df['settled_at']).dt.date
-    df['date_credited'] = pd.to_datetime(df['credited_at']).dt.date
+    # Work on a copy so we never mutate the global cached df in place!
+    df_timeline = df.copy()
+    df_timeline['date_settled'] = pd.to_datetime(df_timeline['settled_at']).dt.date
+    df_timeline['date_credited'] = pd.to_datetime(df_timeline['credited_at']).dt.date
     
-    daily_settled = df.groupby('date_settled')['settled_amount'].sum().reset_index()
-    daily_credited = df.groupby('date_credited')['credited_amount'].sum().reset_index()
+    daily_settled = df_timeline.groupby('date_settled')['settled_amount'].sum().reset_index()
+    daily_credited = df_timeline.groupby('date_credited')['credited_amount'].sum().reset_index()
     
     # Merge them on date
     # Some dates might be only in one
@@ -388,6 +397,39 @@ async def get_eval_results():
         "calibration": calibration_data,
         "details": details
     }
+
+@app.get("/api/batch-test/default-questions")
+async def get_default_batch_questions():
+    df, _, exc = get_reconciled_data()
+    questions = []
+    
+    # 1. Clean Match order from active dataset
+    if not df.empty:
+        clean_orders = df[df['reason'] == 'CLEAN_MATCH']
+        if not clean_orders.empty:
+            sample_clean = clean_orders.iloc[0]['order_id']
+            questions.append(f"What is the status of {sample_clean}?")
+        else:
+            sample_any = df.iloc[0]['order_id']
+            questions.append(f"What is the status of {sample_any}?")
+    else:
+        questions.append("What is the status of order_51589486?")
+        
+    # 2. Real exception order from active dataset
+    if not exc.empty:
+        sample_exc = exc.iloc[0]['order_id']
+        questions.append(f"Why did {sample_exc} fail reconciliation?")
+    else:
+        questions.append("Why did order_80722942 fail reconciliation?")
+        
+    # 3. Exception aggregate count queries
+    questions.append("How many DUPLICATE_UTR exceptions do we have?")
+    questions.append("How many MISSING_PAYMENT exceptions are recorded?")
+    
+    # 4. Total settled volume across all records
+    questions.append("What is the total settled amount for all records?")
+    
+    return {"questions": questions}
 
 @app.post("/api/batch-test")
 async def run_batch_test(req: BatchTestRequest):

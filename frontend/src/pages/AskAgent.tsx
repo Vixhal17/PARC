@@ -139,15 +139,16 @@ function getSuggestedFollowUps(msg: Message): FollowUpAction[] {
   return actions.slice(0, 3);
 }
 
-const PROMPT_SUGGESTIONS = [
-  { icon: "🔍", category: "Order Status", text: "What is the status of order order_3356886?" },
-  { icon: "⚠️", category: "Exception Triage", text: "Why did order_79254563 fail reconciliation?" },
+const DEFAULT_PROMPT_SUGGESTIONS = [
+  { icon: "🔍", category: "Order Status", text: "What is the status of our latest clean orders?" },
+  { icon: "⚠️", category: "Exception Triage", text: "Why did recent exceptions fail reconciliation?" },
   { icon: "📊", category: "Exception Metrics", text: "How many DUPLICATE_UTR exceptions do we have?" },
-  { icon: "🏦", category: "Settlement Summary", text: "What is the total settled amount today?" },
+  { icon: "🏦", category: "Settlement Summary", text: "What is the total settled amount for all records?" },
 ];
 
 export default function AskAgent() {
   const { generationKey, activeRun, openDataModal, prefilledAgentQuestion, setPrefilledAgentQuestion } = useData();
+  const [suggestions, setSuggestions] = useState(DEFAULT_PROMPT_SUGGESTIONS);
   const [messages, setMessages] = useState<Message[]>([
     { 
       role: 'agent', 
@@ -158,6 +159,19 @@ export default function AskAgent() {
   const [loading, setLoading] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
+
+  useEffect(() => {
+    apiClient.getDefaultBatchQuestions().then(qs => {
+      if (qs && qs.length >= 4) {
+        setSuggestions([
+          { icon: "🔍", category: "Order Status", text: qs[0] },
+          { icon: "⚠️", category: "Exception Triage", text: qs[1] },
+          { icon: "📊", category: "Exception Metrics", text: qs[2] },
+          { icon: "🏦", category: "Settlement Summary", text: qs[4] || "What is the total settled amount for all records?" },
+        ]);
+      }
+    }).catch(() => {});
+  }, [generationKey]);
   
   const isExecutingRef = useRef(false);
   const lastProcessedPrefillRef = useRef<string | null>(null);
@@ -293,10 +307,24 @@ export default function AskAgent() {
         content: m.content
       }));
 
+    const formatStatusMessage = (msg: string): string => {
+      if (!msg) return 'Analyzing reconciliation data...';
+      if (msg.includes('Turn 1') || msg.includes('Routing to') || msg.includes('Groq') || msg.includes('gpt-') || msg.includes('Mistral')) {
+        return 'Analyzing query & identifying transaction records...';
+      }
+      if (msg.includes('Turn 2') || msg.includes('Synthesizing')) {
+        return 'Compiling reconciliation report & verifying facts...';
+      }
+      if (msg.includes('Rate limit')) {
+        return 'Optimizing response delivery channel...';
+      }
+      return msg;
+    };
+
     setMessages(prev => [
       ...prev,
       { role: 'user', content: trimmed },
-      { role: 'agent', content: '', statusText: 'Dispatching to deterministic settlement tools...' }
+      { role: 'agent', content: '', statusText: 'Connecting to reconciliation ledger...' }
     ]);
 
     apiClient.askAgentStream(
@@ -307,7 +335,7 @@ export default function AskAgent() {
           const updated = [...prev];
           const lastIdx = updated.length - 1;
           if (lastIdx >= 0 && updated[lastIdx].role === 'agent') {
-            updated[lastIdx] = { ...updated[lastIdx], statusText: statusMsg };
+            updated[lastIdx] = { ...updated[lastIdx], statusText: formatStatusMessage(statusMsg) };
           }
           return updated;
         });
@@ -413,7 +441,7 @@ export default function AskAgent() {
         <span className="text-[11px] font-semibold text-slate-400 dark:text-zinc-500 uppercase tracking-wider shrink-0 mr-1">
           Suggestions:
         </span>
-        {PROMPT_SUGGESTIONS.map((item, idx) => (
+        {suggestions.map((item, idx) => (
           <button
             key={idx}
             onClick={() => executeQuestion(item.text)}
